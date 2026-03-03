@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yahtzee Advisor — Real-Life Helper</title>
+    <meta name="description"
+        content="Enter your Yahtzee dice and get mathematically optimal advice on what to keep and where to score.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app-container">
+
+        <!-- ═══ DATABASE BUILD BANNER ═══ -->
+        <div class="db-banner" id="db-banner">
+            <div class="db-banner-left">
+                <div class="db-status-dot" id="db-dot"></div>
+                <span class="db-status-text" id="db-status-text">Checking database…</span>
+            </div>
+            <div class="db-banner-center" id="db-progress-area" style="display:none">
+                <div class="db-progress-bar">
+                    <div class="db-progress-fill" id="db-progress-fill"></div>
+                </div>
+                <span class="db-progress-label" id="db-progress-label">0%</span>
+            </div>
+            <div class="db-banner-right">
+                <button class="db-build-btn" id="db-build-btn" onclick="startBuildDatabase()" style="display:none">
+                    ⚙ Build Database
+                </button>
+                <button class="db-build-btn" id="db-export-btn" onclick="YahtzeeDB.exportToFile()" style="display:none"
+                    title="Save database to a file on your computer">
+                    ↓ Export .ydb
+                </button>
+                <label class="db-build-btn" id="db-import-label" style="display:none;cursor:pointer"
+                    title="Restore database from a saved .ydb file">
+                    ↑ Import .ydb
+                    <input type="file" accept=".ydb" id="db-import-input" style="display:none"
+                        onchange="importDBFile(event)">
+                </label>
+                <span class="db-entry-count" id="db-entry-count"></span>
+            </div>
+        </div>
+
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <div class="logo-icon">🎲</div>
+                <div class="header-text">
+                    <h1>Yahtzee Advisor</h1>
+                    <p class="subtitle">Real-Life Optimizer</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="stat-pill">
+                    <span class="stat-label">Turn</span>
+                    <span class="stat-value" id="turn-number">0 / 13</span>
+                </div>
+                <div class="stat-pill accent">
+                    <span class="stat-label">Score</span>
+                    <span class="stat-value" id="total-score">0</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+
+            <!-- ═══════════════════════════════════════════════
+                 LEFT PANEL — Dice Input & Advice
+            ═══════════════════════════════════════════════ -->
+            <section class="game-panel">
+
+                <!-- Roll indicator -->
+                <div class="roll-indicator">
+                    <div class="roll-pips">
+                        <div class="pip" id="pip-0" title="Roll 1"></div>
+                        <div class="pip" id="pip-1" title="Roll 2"></div>
+                        <div class="pip" id="pip-2" title="Roll 3"></div>
+                    </div>
+                    <span id="roll-label">Roll 1 of 3 — Enter your dice</span>
+                </div>
+
+                <!-- Dice Input Area -->
+                <div class="dice-section card">
+                    <div class="section-header">
+                        <h2>Your Dice</h2>
+                        <span class="hint-text">Tap a die to change its value</span>
+                    </div>
+                    <div class="dice-tray" id="dice-tray">
+                        <!-- Die 0 -->
+                        <div class="die-input-group" id="dig-0">
+                            <button class="die-btn" id="die-0" data-index="0" data-value="0" data-held="false"
+                                onclick="cycleDie(0)">
+                                <span class="die-face" id="face-0">?</span>
+                            </button>
+                            <div class="die-controls">
+                                <button class="die-adj" onclick="adjustDie(0, -1)" title="Decrease">−</button>
+                                <span class="die-val-label" id="val-label-0">—</span>
+                                <button class="die-adj" onclick="adjustDie(0, 1)" title="Increase">+</button>
+                            </div>
+                        </div>
+                        <!-- Die 1 -->
+                        <div class="die-input-group" id="dig-1">
+                            <button class="die-btn" id="die-1" data-index="1" data-value="0" data-held="false"
+                                onclick="cycleDie(1)">
+                                <span class="die-face" id="face-1">?</span>
+                            </button>
+                            <div class="die-controls">
+                                <button class="die-adj" onclick="adjustDie(1, -1)">−</button>
+                                <span class="die-val-label" id="val-label-1">—</span>
+                                <button class="die-adj" onclick="adjustDie(1, 1)">+</button>
+                            </div>
+                        </div>
+                        <!-- Die 2 -->
+                        <div class="die-input-group" id="dig-2">
+                            <button class="die-btn" id="die-2" data-index="2" data-value="0" data-held="false"
+                                onclick="cycleDie(2)">
+                                <span class="die-face" id="face-2">?</span>
+                            </button>
+                            <div class="die-controls">
+                                <button class="die-adj" onclick="adjustDie(2, -1)">−</button>
+                                <span class="die-val-label" id="val-label-2">—</span>
+                                <button class="die-adj" onclick="adjustDie(2, 1)">+</button>
+                            </div>
+                        </div>
+                        <!-- Die 3 -->
+                        <div class="die-input-group" id="dig-3">
+                            <button class="die-btn" id="die-3" data-index="3" data-value="0" data-held="false"
+                                onclick="cycleDie(3)">
+                                <span class="die-face" id="face-3">?</span>
+                            </button>
+                            <div class="die-controls">
+                                <button class="die-adj" onclick="adjustDie(3, -1)">−</button>
+                                <span class="die-val-label" id="val-label-3">—</span>
+                                <button class="die-adj" onclick="adjustDie(3, 1)">+</button>
+                            </div>
+                        </div>
+                        <!-- Die 4 -->
+                        <div class="die-input-group" id="dig-4">
+                            <button class="die-btn" id="die-4" data-index="4" data-value="0" data-held="false"
+                                onclick="cycleDie(4)">
+                                <span class="die-face" id="face-4">?</span>
+                            </button>
+                            <div class="die-controls">
+                                <button class="die-adj" onclick="adjustDie(4, -1)">−</button>
+                                <span class="die-val-label" id="val-label-4">—</span>
+                                <button class="die-adj" onclick="adjustDie(4, 1)">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick-set number pad -->
+                    <div class="numpad-hint">
+                        <span class="numpad-label">Or use keyboard: select die then press 1–6</span>
+                    </div>
+                </div>
+
+                <!-- Advice Panel -->
+                <div class="advice-section card" id="advice-section">
+                    <div class="section-header">
+                        <h2>🤖 Optimizer Advice</h2>
+                        <span class="advice-badge" id="advice-badge">Waiting…</span>
+                    </div>
+                    <div class="advice-body" id="advice-body">
+                        <p class="advice-placeholder">Enter all 5 dice values, then press <strong>Analyze</strong>.</p>
+                    </div>
+                </div>
+
+                <!-- Scoring options (shown when on final roll) -->
+                <div class="scoring-section card" id="scoring-section" style="display:none">
+                    <div class="section-header">
+                        <h2>📊 All Scoring Options</h2>
+                    </div>
+                    <div class="scoring-options" id="scoring-options"></div>
+                </div>
+
+                <!-- Actions -->
+                <div class="action-area">
+                    <button class="action-btn primary" id="analyze-btn" onclick="analyze()" disabled>
+                        <span class="btn-icon">🔍</span>
+                        <span class="btn-text">Analyze</span>
+                    </button>
+                    <button class="action-btn secondary" id="next-btn" onclick="nextPhase()" style="display:none">
+                        <span class="btn-icon">⏭</span>
+                        <span class="btn-text" id="next-btn-text">Next Roll</span>
+                    </button>
+                    <button class="action-btn ghost" id="reset-turn-btn" onclick="resetTurn()"
+                        title="Clear dice and start this turn over">
+                        <span class="btn-icon">↺</span>
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- ═══════════════════════════════════════════════
+                 RIGHT PANEL — Scorecard
+            ═══════════════════════════════════════════════ -->
+            <section class="scorecard-panel">
+                <div class="section-header">
+                    <h2>Scorecard</h2>
+                    <button class="new-game-btn" onclick="newGame()" title="New Game">New Game</button>
+                </div>
+                <div class="scorecard">
+
+                    <!-- Upper Section -->
+                    <div class="score-section-header upper">
+                        <span>Upper Section</span>
+                        <span class="bonus-tracker" id="bonus-tracker">0 / 63</span>
+                    </div>
+                    <div class="score-row" id="row-aces" data-category="aces" onclick="manualScore('aces')">
+                        <div class="row-left">
+                            <span class="category-name">Aces</span>
+                            <span class="category-desc">Sum of ⚀s</span>
+                        </div>
+                        <span class="category-score" id="score-aces">—</span>
+                    </div>
+                    <div class="score-row" id="row-twos" data-category="twos" onclick="manualScore('twos')">
+                        <div class="row-left">
+                            <span class="category-name">Twos</span>
+                            <span class="category-desc">Sum of ⚁s</span>
+                        </div>
+                        <span class="category-score" id="score-twos">—</span>
+                    </div>
+                    <div class="score-row" id="row-threes" data-category="threes" onclick="manualScore('threes')">
+                        <div class="row-left">
+                            <span class="category-name">Threes</span>
+                            <span class="category-desc">Sum of ⚂s</span>
+                        </div>
+                        <span class="category-score" id="score-threes">—</span>
+                    </div>
+                    <div class="score-row" id="row-fours" data-category="fours" onclick="manualScore('fours')">
+                        <div class="row-left">
+                            <span class="category-name">Fours</span>
+                            <span class="category-desc">Sum of ⚃s</span>
+                        </div>
+                        <span class="category-score" id="score-fours">—</span>
+                    </div>
+                    <div class="score-row" id="row-fives" data-category="fives" onclick="manualScore('fives')">
+                        <div class="row-left">
+                            <span class="category-name">Fives</span>
+                            <span class="category-desc">Sum of ⚄s</span>
+                        </div>
+                        <span class="category-score" id="score-fives">—</span>
+                    </div>
+                    <div class="score-row" id="row-sixes" data-category="sixes" onclick="manualScore('sixes')">
+                        <div class="row-left">
+                            <span class="category-name">Sixes</span>
+                            <span class="category-desc">Sum of ⚅s</span>
+                        </div>
+                        <span class="category-score" id="score-sixes">—</span>
+                    </div>
+                    <div class="score-row bonus-row" id="row-upper-bonus">
+                        <div class="row-left">
+                            <span class="category-name">Upper Bonus</span>
+                            <span class="category-desc">≥63 → +50</span>
+                        </div>
+                        <span class="category-score" id="score-upper-bonus">—</span>
+                    </div>
+                    <div class="score-row subtotal-row">
+                        <div class="row-left">
+                            <span class="category-name">Upper Total</span>
+                            <span class="category-desc"></span>
+                        </div>
+                        <span class="category-score" id="score-upper-total">0</span>
+                    </div>
+
+                    <!-- Lower Section -->
+                    <div class="score-section-header lower">
+                        <span>Lower Section</span>
+                    </div>
+                    <div class="score-row" id="row-pair" data-category="pair" onclick="manualScore('pair')">
+                        <div class="row-left">
+                            <span class="category-name">One Pair</span>
+                            <span class="category-desc">Sum highest pair</span>
+                        </div>
+                        <span class="category-score" id="score-pair">—</span>
+                    </div>
+
+                    <div class="score-row" id="row-two-pairs" data-category="two-pairs"
+                        onclick="manualScore('two-pairs')">
+                        <div class="row-left">
+                            <span class="category-name">Two Pairs</span>
+                            <span class="category-desc">Sum of two pairs</span>
+                        </div>
+                        <span class="category-score" id="score-two-pairs">—</span>
+                    </div>
+
+                    <div class="score-row" id="row-three-of-a-kind" data-category="three-of-a-kind"
+                        onclick="manualScore('three-of-a-kind')">
+                        <div class="row-left">
+                            <span class="category-name">3 of a Kind</span>
+                            <span class="category-desc">3 × matching value</span>
+                        </div>
+                        <span class="category-score" id="score-three-of-a-kind">—</span>
+                    </div>
+                    <div class="score-row" id="row-four-of-a-kind" data-category="four-of-a-kind"
+                        onclick="manualScore('four-of-a-kind')">
+                        <div class="row-left">
+                            <span class="category-name">4 of a Kind</span>
+                            <span class="category-desc">4 × matching value</span>
+                        </div>
+                        <span class="category-score" id="score-four-of-a-kind">—</span>
+                    </div>
+                    <div class="score-row" id="row-full-house" data-category="full-house"
+                        onclick="manualScore('full-house')">
+                        <div class="row-left">
+                            <span class="category-name">Full House</span>
+                            <span class="category-desc">Sum of all 5 dice</span>
+                        </div>
+                        <span class="category-score" id="score-full-house">—</span>
+                    </div>
+                    <div class="score-row" id="row-small-straight" data-category="small-straight"
+                        onclick="manualScore('small-straight')">
+                        <div class="row-left">
+                            <span class="category-name">Sm. Straight</span>
+                            <span class="category-desc">15 pts</span>
+                        </div>
+                        <span class="category-score" id="score-small-straight">—</span>
+                    </div>
+                    <div class="score-row" id="row-large-straight" data-category="large-straight"
+                        onclick="manualScore('large-straight')">
+                        <div class="row-left">
+                            <span class="category-name">Lg. Straight</span>
+                            <span class="category-desc">20 pts</span>
+                        </div>
+                        <span class="category-score" id="score-large-straight">—</span>
+                    </div>
+                    <div class="score-row" id="row-yahtzee" data-category="yahtzee" onclick="manualScore('yahtzee')">
+                        <div class="row-left">
+                            <span class="category-name">Yahtzee</span>
+                            <span class="category-desc">50 pts</span>
+                        </div>
+                        <span class="category-score" id="score-yahtzee">—</span>
+                    </div>
+                    <div class="score-row" id="row-chance" data-category="chance" onclick="manualScore('chance')">
+                        <div class="row-left">
+                            <span class="category-name">Chance</span>
+                            <span class="category-desc">Sum all dice</span>
+                        </div>
+                        <span class="category-score" id="score-chance">—</span>
+                    </div>
+                    <div class="score-row subtotal-row">
+                        <div class="row-left">
+                            <span class="category-name">Lower Total</span>
+                            <span class="category-desc"></span>
+                        </div>
+                        <span class="category-score" id="score-lower-total">0</span>
+                    </div>
+
+                    <!-- Grand Total -->
+                    <div class="score-row grand-total-row">
+                        <div class="row-left">
+                            <span class="category-name">Grand Total</span>
+                        </div>
+                        <span class="category-score" id="score-grand-total">0</span>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Score Confirm Toast -->
+        <div class="toast" id="score-toast"></div>
+
+        <!-- Game Over Modal -->
+        <div class="modal-overlay" id="game-over-modal">
+            <div class="modal-card">
+                <div class="modal-icon">🏆</div>
+                <h2>Game Complete!</h2>
+                <p class="modal-score-label">Final Score</p>
+                <div class="modal-score" id="final-score-value">0</div>
+                <div class="modal-stats" id="modal-stats"></div>
+                <button class="action-btn primary" onclick="newGame()">
+                    <span class="btn-icon">🔄</span>
+                    <span class="btn-text">New Game</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="optimizer.js"></script>
+    <script src="precompute.js"></script>
+    <script src="game.js"></script>
+</body>
+
+</html>
