@@ -91,12 +91,12 @@ const Scoring = {
 
     'small-straight': dice => {
         const u = [...new Set(dice)].sort((a, b) => a - b).join('');
-        return ['1234', '2345', '3456'].some(p => u.includes(p)) ? 15 : 0;
+        return u === '12345' ? 15 : 0;
     },
 
     'large-straight': dice => {
         const u = [...new Set(dice)].sort((a, b) => a - b).join('');
-        return (u === '12345' || u === '23456') ? 20 : 0;
+        return u === '23456' ? 20 : 0;
     },
 
     'yahtzee': dice => (new Set(dice).size === 1) ? 50 : 0,

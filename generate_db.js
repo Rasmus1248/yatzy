@@ -100,8 +100,8 @@ const S = {
     'three-of-a-kind': d => { const c = cnt(d); const v = Object.keys(c).find(k => c[k] >= 3); return v ? parseInt(v) * 3 : 0; },
     'four-of-a-kind': d => { const c = cnt(d); const v = Object.keys(c).find(k => c[k] >= 4); return v ? parseInt(v) * 4 : 0; },
     'full-house': d => { const v = Ov(cnt(d)).sort(); return (v.length === 2 && v[0] === 2) ? sm(d) : 0; },
-    'small-straight': d => { const u = [...new Set(d)].sort((a, b) => a - b).join(''); return ['1234', '2345', '3456'].some(p => u.includes(p)) ? 15 : 0; },
-    'large-straight': d => { const u = [...new Set(d)].sort((a, b) => a - b).join(''); return (u === '12345' || u === '23456') ? 20 : 0; },
+    'small-straight': d => { const u = [...new Set(d)].sort((a, b) => a - b).join(''); return u === '12345' ? 15 : 0; },
+    'large-straight': d => { const u = [...new Set(d)].sort((a, b) => a - b).join(''); return u === '23456' ? 20 : 0; },
     'yahtzee': d => new Set(d).size === 1 ? 50 : 0,
     'chance': d => sm(d),
 };

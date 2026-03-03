@@ -596,7 +596,7 @@ function renderAllDice(heldIndices) {
 function renderScorecard() {
     const upper = computeUpperTotal();
     const lower = computeLowerTotal();
-    const bonus = upper >= 63 ? 35 : 0;
+    const bonus = upper >= 63 ? 50 : 0;
     const grand = upper + bonus + lower;
 
     for (const cat of Engine.ALL_CATEGORIES) {
@@ -619,7 +619,7 @@ function renderScorecard() {
 
     // Upper bonus
     const bonusEl = document.getElementById('score-upper-bonus');
-    bonusEl.textContent = bonus > 0 ? '+35' : '—';
+    bonusEl.textContent = bonus > 0 ? '+50' : '—';
     bonusEl.style.color = bonus > 0 ? 'var(--accent-gold)' : '';
 
     document.getElementById('score-upper-total').textContent = upper + bonus;
