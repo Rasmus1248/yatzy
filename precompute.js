@@ -7,7 +7,7 @@
  *  no IndexedDB — the file is always there as a static asset.
  *
  *  File format (binary, little-endian):
- *   bytes  0– 7  : ASCII magic "YTZDB003"
+ *   bytes  0– 7  : ASCII magic "YTZDB004"
  *   bytes  8–11  : uint32 N_DICE = 252
  *   bytes 12–15  : uint32 N_CATS = 32768
  *   bytes 16–?   : RL0 [252×32768] best catIdx  (rollsLeft=0)
@@ -20,7 +20,7 @@ window.YahtzeeDB = (() => {
     'use strict';
 
     const DB_FILE = 'yahtzee_perfect.ydb';
-    const MAGIC = 'YTZDB003';
+    const MAGIC = 'YTZDB004';
     const N_CATS = 32768;
 
     const CAT_LIST = [

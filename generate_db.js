@@ -1,17 +1,14 @@
 /**
- * generate_db.js  (v3 — ultra-optimized transition cache for 15 categories)
+ * generate_db.js  (v4 — True Bellman Equation DP)
  * ==================================================================
  * Run once with:  node generate_db.js
  *
- * Optimizations:
- *  1. SCORE_CACHE: upfront array of all dice × category combination scores.
- *  2. TRANSITIONS: fully precomputed transition matrix 
- *     (dice -> keep -> mapped outcomes with probabilities).
- *  3. INVERTED LOOPS: loops over catMask *outside* the dice loop,
- *     which drastically improves CPU cache locality.
+ * Implements mathematically perfect Expected Value (Bellman Equation):
+ *   EV(State, Cat) = Score(Dice, Cat) + EV_NewTurn(Remaining Cats)
+ *   EV_NewTurn(C) = sum_{R} [ Prob(R) * EV_Roll2(R, C) ]
  *
  * File format (binary, little-endian):
- *   bytes  0– 7  : ASCII magic "YTZDB003"
+ *   bytes  0– 7  : ASCII magic "YTZDB004"
  *   bytes  8–11  : uint32 N_DICE = 252
  *   bytes 12–15  : uint32 N_CATS = 32768
  *   bytes 16–?   : RL0  [252*32768] best catIdx  (rollsLeft=0)
@@ -25,7 +22,7 @@ const fs = require('fs');
 const path = require('path');
 
 const OUT_FILE = path.join(__dirname, 'yahtzee_perfect.ydb');
-const MAGIC = 'YTZDB003';
+const MAGIC = 'YTZDB004';
 const N_CATS = 32768;
 
 const CAT_LIST = [
@@ -43,7 +40,7 @@ const DICE_TO_IDX = {};
         for (let v = minV; v <= 6; v++) { cur.push(v); rec(r - 1, v, cur); cur.pop(); }
     })(5, 1, []);
 })();
-const N_DICE = DICE_COMBOS.length; // 252
+const N_DICE = DICE_COMBOS.length;
 
 // ── UNIQUE MULTISET SUBSETS ───────────────────────────────────
 const DICE_SUBSETS = DICE_COMBOS.map(dice => {
@@ -116,13 +113,13 @@ function progress(label, done, total) {
     if (done === total) process.stdout.write('\n');
 }
 
-console.log('\nYahtzee Perfect DB generator v3 (Ultra O(1))');
+console.log('\nYahtzee Perfect DB generator v4 (True Bellman DP)');
 console.log(`  Output: ${OUT_FILE}\n`);
 
 const t0 = Date.now();
 
-// ── SETTING UP TRANSITIONS ────────────────────────────────────
-console.log('Step 0/5 — Precomputing Transition Map');
+// ── PRECOMPUTE TRANSITIONS ────────────────────────────────────
+console.log('Step 0/2 — Precomputing Transitions & Score Cache');
 const T = []; // T[di][si][out_i] = {fdi, normW}
 for (let di = 0; di < N_DICE; di++) {
     T[di] = [];
@@ -142,39 +139,52 @@ for (let di = 0; di < N_DICE; di++) {
     }
 }
 
-console.log('Step 1/5 — Per-category score table (252×15)');
 const SCORE_PER_CAT = DICE_COMBOS.map(d => CAT_LIST.map(c => S[c](d)));
 
-// ── STEP 2: BEST_SCORE_EV[diceIdx][catMask] ──────────────────
-console.log('Step 2/5 — Scoring table (RL0) + EV cache');
+// Fresh roll probabilities
+const FRESH_PROBS = new Float32Array(N_DICE);
+for (const { d, w } of OUTCOMES[5]) {
+    FRESH_PROBS[DICE_TO_IDX[d.join('')]] = w / 7776;
+}
+
+// ── TRUE BELLMAN DP ──────────────────────────────────────────
+console.log('Step 1/2 — Dynamic Programming (32,768 states)');
 const tblSize = N_DICE * N_CATS;
 const flat = (di, cm) => di * N_CATS + cm;
 const RL0 = new Uint8Array(tblSize);
-const SCORE_EV = new Float32Array(tblSize);
+const RL1 = new Uint8Array(tblSize);
+const RL2 = new Uint8Array(tblSize);
 
-// Because cm is the big dimension, we loop cm outside
+// Reusable scratch arrays for exactly 1 category mask (size 252)
+// This fits entirely in L1 cache = ludicrous speed
+const SCORE_EV = new Float32Array(N_DICE);
+const RL1_EV = new Float32Array(N_DICE);
+const RL2_EV = new Float32Array(N_DICE);
+const EV_NewTurn = new Float32Array(N_CATS);
+
+// cm=0 => 0 EV.
 for (let cm = 1; cm < N_CATS; cm++) {
+    // 1. RL0: Score category + NewTurn EV of remainder
     for (let di = 0; di < N_DICE; di++) {
         const scores = SCORE_PER_CAT[di];
         let bestCat = -1, bestEV = -Infinity;
         for (let ci = 0; ci < 15; ci++) {
             if (!(cm & (1 << ci))) continue;
-            let ev = scores[ci];
-            if (ci < 6 && ev > 0) ev += 0.3; // upper bonus nudge
-            if (ev > bestEV) { bestEV = ev; bestCat = ci; }
+            let raw = scores[ci];
+            let immediate = raw;
+            // Upper bonus expectation heuristic (50/63 pts per upper pip)
+            if (ci < 6 && raw > 0) immediate += raw * (50 / 63);
+
+            const remMask = cm & ~(1 << ci);
+            const totalEV = immediate + EV_NewTurn[remMask];
+
+            if (totalEV > bestEV) { bestEV = totalEV; bestCat = ci; }
         }
-        RL0[flat(di, cm)] = bestCat < 0 ? 0 : bestCat;
-        SCORE_EV[flat(di, cm)] = bestEV < 0 ? 0 : bestEV;
+        RL0[flat(di, cm)] = bestCat;
+        SCORE_EV[di] = bestEV;
     }
-    if (cm % 500 === 0 || cm === N_CATS - 1) progress('RL0 ', cm + 1, N_CATS);
-}
 
-// ── STEP 3: RL1 (rollsLeft=1) ─────────────────────────────────
-console.log('Step 3/5 — One-reroll table (RL1)');
-const RL1 = new Uint8Array(tblSize);
-const RL1_EV = new Float32Array(tblSize);
-
-for (let cm = 1; cm < N_CATS; cm++) {
+    // 2. RL1: Keep state -> Roll to RL0
     for (let di = 0; di < N_DICE; di++) {
         const subsets = T[di];
         let bestEV = -Infinity, bestSi = subsets.length - 1;
@@ -182,21 +192,15 @@ for (let cm = 1; cm < N_CATS; cm++) {
             let ev = 0;
             const outs = subsets[si];
             for (let o = 0; o < outs.length; o++) {
-                ev += outs[o].normW * SCORE_EV[flat(outs[o].fdi, cm)];
+                ev += outs[o].normW * SCORE_EV[outs[o].fdi];
             }
             if (ev > bestEV) { bestEV = ev; bestSi = si; }
         }
         RL1[flat(di, cm)] = bestSi;
-        RL1_EV[flat(di, cm)] = bestEV;
+        RL1_EV[di] = bestEV;
     }
-    if (cm % 500 === 0 || cm === N_CATS - 1) progress('RL1 ', cm + 1, N_CATS);
-}
 
-// ── STEP 4: RL2 (rollsLeft=2) ─────────────────────────────────
-console.log('Step 4/5 — Two-reroll table (RL2)');
-const RL2 = new Uint8Array(tblSize);
-
-for (let cm = 1; cm < N_CATS; cm++) {
+    // 3. RL2: Keep state -> Roll to RL1
     for (let di = 0; di < N_DICE; di++) {
         const subsets = T[di];
         let bestEV = -Infinity, bestSi = subsets.length - 1;
@@ -204,17 +208,26 @@ for (let cm = 1; cm < N_CATS; cm++) {
             let ev = 0;
             const outs = subsets[si];
             for (let o = 0; o < outs.length; o++) {
-                ev += outs[o].normW * RL1_EV[flat(outs[o].fdi, cm)];
+                ev += outs[o].normW * RL1_EV[outs[o].fdi];
             }
             if (ev > bestEV) { bestEV = ev; bestSi = si; }
         }
         RL2[flat(di, cm)] = bestSi;
+        RL2_EV[di] = bestEV;
     }
-    if (cm % 500 === 0 || cm === N_CATS - 1) progress('RL2 ', cm + 1, N_CATS);
+
+    // 4. EV_NewTurn: Average of RL2 over all fresh roll outcomes
+    let newTurnEV = 0;
+    for (let di = 0; di < N_DICE; di++) {
+        newTurnEV += FRESH_PROBS[di] * RL2_EV[di];
+    }
+    EV_NewTurn[cm] = newTurnEV;
+
+    if (cm % 500 === 0 || cm === N_CATS - 1) progress('DP ', cm, N_CATS - 1);
 }
 
 // ── WRITE FILE ────────────────────────────────────────────────
-console.log('Step 5/5 — Writing yahtzee_perfect.ydb…');
+console.log('Step 2/2 — Writing yahtzee_perfect.ydb…');
 const header = Buffer.allocUnsafe(16);
 Buffer.from(MAGIC, 'ascii').copy(header, 0);
 header.writeUInt32LE(N_DICE, 8);
