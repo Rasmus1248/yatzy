@@ -1,29 +1,11 @@
-/**
- * generate_db.js  (v4 — True Bellman Equation DP)
- * ==================================================================
- * Run once with:  node generate_db.js
- *
- * Implements mathematically perfect Expected Value (Bellman Equation):
- *   EV(State, Cat) = Score(Dice, Cat) + EV_NewTurn(Remaining Cats)
- *   EV_NewTurn(C) = sum_{R} [ Prob(R) * EV_Roll2(R, C) ]
- *
- * File format (binary, little-endian):
- *   bytes  0– 7  : ASCII magic "YTZDB004"
- *   bytes  8–11  : uint32 N_DICE = 252
- *   bytes 12–15  : uint32 N_CATS = 32768
- *   bytes 16–?   : RL0  [252*32768] best catIdx  (rollsLeft=0)
- *   bytes  ?– ?  : RL1  [252*32768] best subsetIdx (rollsLeft=1)
- *   bytes  ?–end : RL2  [252*32768] best subsetIdx (rollsLeft=2)
- * Total ≈ 24.8 MB.
- */
-
 'use strict';
 const fs = require('fs');
 const path = require('path');
 
 const OUT_FILE = path.join(__dirname, 'yahtzee_perfect.ydb');
-const MAGIC = 'YTZDB004';
+const MAGIC = 'YTZDB005'; // Version 5
 const N_CATS = 32768;
+const MAX_UPPER = 64; // Scores 0 to 63
 
 const CAT_LIST = [
     'aces', 'twos', 'threes', 'fours', 'fives', 'sixes',
@@ -31,7 +13,6 @@ const CAT_LIST = [
     'small-straight', 'large-straight', 'yahtzee', 'chance'
 ];
 
-// ── DICE COMBOS ───────────────────────────────────────────────
 const DICE_COMBOS = [];
 const DICE_TO_IDX = {};
 (function () {
@@ -42,7 +23,6 @@ const DICE_TO_IDX = {};
 })();
 const N_DICE = DICE_COMBOS.length;
 
-// ── UNIQUE MULTISET SUBSETS ───────────────────────────────────
 const DICE_SUBSETS = DICE_COMBOS.map(dice => {
     const r = [[]];
     (function rec(s, cur) {
@@ -54,7 +34,6 @@ const DICE_SUBSETS = DICE_COMBOS.map(dice => {
     return r;
 });
 
-// ── SORTED REROLL OUTCOMES ────────────────────────────────────
 const FACT = [1, 1, 2, 6, 24, 120];
 const OUTCOMES = (() => {
     const t = {};
@@ -79,7 +58,6 @@ function mergeSorted(a, b) {
     return o;
 }
 
-// ── SCORING ───────────────────────────────────────────────────
 const sm = d => d.reduce((a, b) => a + b, 0);
 const cnt = d => { const c = {}; for (const v of d) c[v] = (c[v] || 0) + 1; return c; };
 const Ov = Object.values.bind(Object);
@@ -94,8 +72,7 @@ const S = {
     'two-pairs': d => {
         const c = cnt(d); const p = Object.keys(c).filter(k => c[k] >= 2).map(Number).sort((a, b) => b - a);
         if (p.length >= 2) return p[0] * 2 + p[1] * 2;
-        const four = Object.keys(c).find(k => c[k] >= 4);
-        return four ? parseInt(four) * 4 : 0;
+        const four = Object.keys(c).find(k => c[k] >= 4); return four ? parseInt(four) * 4 : 0;
     },
     'three-of-a-kind': d => { const c = cnt(d); const v = Object.keys(c).find(k => c[k] >= 3); return v ? parseInt(v) * 3 : 0; },
     'four-of-a-kind': d => { const c = cnt(d); const v = Object.keys(c).find(k => c[k] >= 4); return v ? parseInt(v) * 4 : 0; },
@@ -106,21 +83,10 @@ const S = {
     'chance': d => sm(d),
 };
 
-function progress(label, done, total) {
-    const pct = ((done / total) * 100).toFixed(1).padStart(5);
-    const bar = '█'.repeat(Math.round(done / total * 30)).padEnd(30, '░');
-    process.stdout.write(`\r  ${label}  [${bar}] ${pct}%`);
-    if (done === total) process.stdout.write('\n');
-}
-
-console.log('\nYahtzee Perfect DB generator v4 (True Bellman DP)');
-console.log(`  Output: ${OUT_FILE}\n`);
-
+console.log('\nYahtzee Perfect DB generator v5 (Full Upper Sum tracking)');
 const t0 = Date.now();
 
-// ── PRECOMPUTE TRANSITIONS ────────────────────────────────────
-console.log('Step 0/2 — Precomputing Transitions & Score Cache');
-const T = []; // T[di][si][out_i] = {fdi, normW}
+const T = [];
 for (let di = 0; di < N_DICE; di++) {
     T[di] = [];
     const subsets = DICE_SUBSETS[di];
@@ -132,113 +98,82 @@ for (let di = 0; di < N_DICE; di++) {
         const list = [];
         for (const { d: rolled, w } of outs) {
             const full = mergeSorted(keep, rolled);
-            const fdi = DICE_TO_IDX[full.join('')];
-            list.push({ fdi, normW: w / wt });
+            list.push({ fdi: DICE_TO_IDX[full.join('')], normW: w / wt });
         }
         T[di][si] = list;
     }
 }
 
 const SCORE_PER_CAT = DICE_COMBOS.map(d => CAT_LIST.map(c => S[c](d)));
-
-// Fresh roll probabilities
 const FRESH_PROBS = new Float32Array(N_DICE);
-for (const { d, w } of OUTCOMES[5]) {
-    FRESH_PROBS[DICE_TO_IDX[d.join('')]] = w / 7776;
-}
+for (const { d, w } of OUTCOMES[5]) FRESH_PROBS[DICE_TO_IDX[d.join('')]] = w / 7776;
 
-// ── TRUE BELLMAN DP ──────────────────────────────────────────
-console.log('Step 1/2 — Dynamic Programming (32,768 states)');
-const tblSize = N_DICE * N_CATS;
-const flat = (di, cm) => di * N_CATS + cm;
-const RL0 = new Uint8Array(tblSize);
-const RL1 = new Uint8Array(tblSize);
-const RL2 = new Uint8Array(tblSize);
-
-// Reusable scratch arrays for exactly 1 category mask (size 252)
-// This fits entirely in L1 cache = ludicrous speed
+const EV_NewTurn = new Float32Array(N_CATS * MAX_UPPER);
 const SCORE_EV = new Float32Array(N_DICE);
 const RL1_EV = new Float32Array(N_DICE);
 const RL2_EV = new Float32Array(N_DICE);
-const EV_NewTurn = new Float32Array(N_CATS);
 
-// cm=0 => 0 EV.
 for (let cm = 1; cm < N_CATS; cm++) {
-    // 1. RL0: Score category + NewTurn EV of remainder
-    for (let di = 0; di < N_DICE; di++) {
-        const scores = SCORE_PER_CAT[di];
-        let bestCat = -1, bestEV = -Infinity;
-        for (let ci = 0; ci < 15; ci++) {
-            if (!(cm & (1 << ci))) continue;
-            let raw = scores[ci];
-            let immediate = raw;
-            // Upper bonus expectation heuristic (50/63 pts per upper pip)
-            if (ci < 6 && raw > 0) immediate += raw * (50 / 63);
+    for (let u = 0; u < MAX_UPPER; u++) {
 
-            const remMask = cm & ~(1 << ci);
-            const totalEV = immediate + EV_NewTurn[remMask];
+        // RL0
+        for (let di = 0; di < N_DICE; di++) {
+            let bestEV = -Infinity;
+            for (let ci = 0; ci < 15; ci++) {
+                if (!(cm & (1 << ci))) continue;
+                let raw = SCORE_PER_CAT[di][ci];
+                let immediate = raw;
+                let nextU = u;
 
-            if (totalEV > bestEV) { bestEV = totalEV; bestCat = ci; }
-        }
-        RL0[flat(di, cm)] = bestCat;
-        SCORE_EV[di] = bestEV;
-    }
+                if (ci < 6) {
+                    nextU = u + raw;
+                    if (u < 63 && nextU >= 63) immediate += 50; // EXACT BONUS! No heuristics.
+                    if (nextU > 63) nextU = 63;
+                }
 
-    // 2. RL1: Keep state -> Roll to RL0
-    for (let di = 0; di < N_DICE; di++) {
-        const subsets = T[di];
-        let bestEV = -Infinity, bestSi = subsets.length - 1;
-        for (let si = 0; si < subsets.length; si++) {
-            let ev = 0;
-            const outs = subsets[si];
-            for (let o = 0; o < outs.length; o++) {
-                ev += outs[o].normW * SCORE_EV[outs[o].fdi];
+                const remMask = cm ^ (1 << ci);
+                const totalEV = immediate + EV_NewTurn[remMask * MAX_UPPER + nextU];
+                if (totalEV > bestEV) bestEV = totalEV;
             }
-            if (ev > bestEV) { bestEV = ev; bestSi = si; }
+            SCORE_EV[di] = bestEV;
         }
-        RL1[flat(di, cm)] = bestSi;
-        RL1_EV[di] = bestEV;
-    }
 
-    // 3. RL2: Keep state -> Roll to RL1
-    for (let di = 0; di < N_DICE; di++) {
-        const subsets = T[di];
-        let bestEV = -Infinity, bestSi = subsets.length - 1;
-        for (let si = 0; si < subsets.length; si++) {
-            let ev = 0;
-            const outs = subsets[si];
-            for (let o = 0; o < outs.length; o++) {
-                ev += outs[o].normW * RL1_EV[outs[o].fdi];
+        // RL1
+        for (let di = 0; di < N_DICE; di++) {
+            const subsets = T[di];
+            let bestEV = -Infinity;
+            for (let si = 0; si < subsets.length; si++) {
+                let ev = 0;
+                const outs = subsets[si];
+                for (let o = 0; o < outs.length; o++) ev += outs[o].normW * SCORE_EV[outs[o].fdi];
+                if (ev > bestEV) bestEV = ev;
             }
-            if (ev > bestEV) { bestEV = ev; bestSi = si; }
+            RL1_EV[di] = bestEV;
         }
-        RL2[flat(di, cm)] = bestSi;
-        RL2_EV[di] = bestEV;
-    }
 
-    // 4. EV_NewTurn: Average of RL2 over all fresh roll outcomes
-    let newTurnEV = 0;
-    for (let di = 0; di < N_DICE; di++) {
-        newTurnEV += FRESH_PROBS[di] * RL2_EV[di];
-    }
-    EV_NewTurn[cm] = newTurnEV;
+        // RL2
+        for (let di = 0; di < N_DICE; di++) {
+            const subsets = T[di];
+            let bestEV = -Infinity;
+            for (let si = 0; si < subsets.length; si++) {
+                let ev = 0;
+                const outs = subsets[si];
+                for (let o = 0; o < outs.length; o++) ev += outs[o].normW * RL1_EV[outs[o].fdi];
+                if (ev > bestEV) bestEV = ev;
+            }
+            RL2_EV[di] = bestEV;
+        }
 
-    if (cm % 500 === 0 || cm === N_CATS - 1) progress('DP ', cm, N_CATS - 1);
+        let nt = 0;
+        for (let di = 0; di < N_DICE; di++) nt += FRESH_PROBS[di] * RL2_EV[di];
+        EV_NewTurn[cm * MAX_UPPER + u] = nt;
+    }
+    if (cm % 500 === 0) process.stdout.write(`\r  DP [${cm}/${N_CATS}]`);
 }
 
-// ── WRITE FILE ────────────────────────────────────────────────
-console.log('Step 2/2 — Writing yahtzee_perfect.ydb…');
 const header = Buffer.allocUnsafe(16);
 Buffer.from(MAGIC, 'ascii').copy(header, 0);
-header.writeUInt32LE(N_DICE, 8);
-header.writeUInt32LE(N_CATS, 12);
-fs.writeFileSync(OUT_FILE, Buffer.concat([
-    header,
-    Buffer.from(RL0.buffer),
-    Buffer.from(RL1.buffer),
-    Buffer.from(RL2.buffer),
-]));
-
-const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-const sizeKB = (fs.statSync(OUT_FILE).size / 1024).toFixed(0);
-console.log(`\n✓ Done in ${elapsed}s — ${sizeKB} KB written to ${OUT_FILE}\n`);
+header.writeUInt32LE(N_CATS, 8);
+header.writeUInt32LE(MAX_UPPER, 12);
+fs.writeFileSync(OUT_FILE, Buffer.concat([header, Buffer.from(EV_NewTurn.buffer)]));
+console.log(`\n✓ Done! DB is now ${(EV_NewTurn.byteLength / 1024 / 1024).toFixed(1)} MB\n`);

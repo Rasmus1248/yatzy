@@ -262,18 +262,14 @@ function _chooseBestCategory(sortedDice, sortedCats, upperSum) {
         const raw = scoreFor(cat, sortedDice);
         let immediateScore = raw;
 
-        // Upper bonus heuristic / exact integration
+        // Exactly award the 50 points if it crosses the 63 threshold. No heuristics.
         if (UPPER_CATEGORIES.has(cat)) {
             const newUpper = upperSum + raw;
             if (upperSum < 63 && newUpper >= 63) {
-                immediateScore += 50; // Full bonus secured! (50 pts)
-            } else if (upperSum < 63) {
-                const progress = Math.max(0, raw - Math.max(0, newUpper - 63)) / 63;
-                immediateScore += 50 * progress * 0.45;
+                immediateScore += 50;
             }
         }
 
-        // DP Recursive Call for Future Expected Value
         const remainingCats = sortedCats.filter(c => c !== cat);
         const futureEV = _getEVNewTurn(remainingCats, upperSum + (UPPER_CATEGORIES.has(cat) ? raw : 0));
         const totalEV = immediateScore + futureEV;
@@ -282,40 +278,22 @@ function _chooseBestCategory(sortedDice, sortedCats, upperSum) {
         if (totalEV > bestEV) { bestEV = totalEV; bestCat = cat; }
     }
 
-    const result = {
-        action: 'score',
-        category: bestCat,
-        score: scoreFor(bestCat, sortedDice), // Actual score without future
-        ev: bestEV,
-        allEVs,
-    };
+    const result = { action: 'score', category: bestCat, score: scoreFor(bestCat, sortedDice), ev: bestEV, allEVs };
     _cache.set(cacheKey, result);
     return result;
 }
 
-// ─────────────────────────────────────────────────────────────
-//  NEW: THE NEW TURN EXPECTED VALUE
-//  EV_NewTurn(C) = sum_{R} [ (Permutations(R) / 6^5) * EV_Roll2(R, C) ]
-// ─────────────────────────────────────────────────────────────
-
 function _getEVNewTurn(sortedCats, upperSum) {
     if (sortedCats.length === 0) return 0;
-
-    // Cap upperSum for DP efficiency so state space doesn't explode
-    const cappedUpper = Math.min(63, upperSum);
-    const cacheKey = 'NT:' + _key([], sortedCats, 0, cappedUpper);
-    if (_cache.has(cacheKey)) return _cache.get(cacheKey);
-
-    let sum = 0;
-    // 252 sorted outcomes for rolling 5 fresh dice (k=5)
-    for (const { dice: rerolled, count } of SORTED_OUTCOMES[5]) {
-        const ev = _chooseBestKeepSet(rerolled, sortedCats, 2, cappedUpper).ev;
-        sum += count * ev;
+    let mask = 0;
+    for (const c of sortedCats) {
+        const i = ALL_CATEGORIES.indexOf(c);
+        if (i >= 0) mask |= (1 << i);
     }
-
-    const finalEV = sum / 7776; // 6^5 permutations
-    _cache.set(cacheKey, finalEV);
-    return finalEV;
+    if (window.YahtzeeDB && window.YahtzeeDB.isReady) {
+        return window.YahtzeeDB.getFutureEV(mask, upperSum);
+    }
+    return 0; // Fallback if no DB
 }
 
 // ─────────────────────────────────────────────────────────────

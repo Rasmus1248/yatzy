@@ -22,7 +22,7 @@ function createState() {
     for (const c of Engine.ALL_CATEGORIES) scorecard[c] = null;
     return {
         scorecard,
-        turn: 0,         // 1–13
+        turn: 0,         // 1–15
         rollPhase: 1,         // 1, 2, or 3
         dice: [0, 0, 0, 0, 0], // 0 = not set, 1–6 = value
         heldIndices: [],        // which dice are locked for next roll
@@ -178,17 +178,9 @@ window.analyze = function () {
     const available = getAvailable();
     const rollsLeft = 3 - G.rollPhase;
 
-    // ── Try DB lookup first (O(1)) ──────────────────────────
-    let decision = null;
-    const dbResult = YahtzeeDB.lookup(G.dice, available, rollsLeft);
-    if (dbResult) {
-        decision = dbResult;
-        decision._fromDB = true;
-    } else {
-        // Fallback: live EV optimizer
-        decision = Engine.optimizerEngine(G.dice, available, rollsLeft, G.upperSum);
-        decision._fromDB = false;
-    }
+    // The optimizer natively hits the DB for lightning fast lookups now
+    let decision = Engine.optimizerEngine(G.dice, available, rollsLeft, G.upperSum);
+    decision._fromDB = YahtzeeDB.isReady;
 
     if (decision.action === 'keep' && rollsLeft > 0) {
         showKeepAdvice(decision);
@@ -260,9 +252,8 @@ function showScoreAdvice(available, preDecision) {
     // otherwise compute now (fallback for edge-case calls).
     let decision = preDecision;
     if (!decision || decision.action !== 'score') {
-        const dbr = YahtzeeDB.lookup(G.dice, available, 0);
-        decision = dbr || Engine.optimizerEngine(G.dice, available, 0, G.upperSum);
-        decision._fromDB = !!dbr;
+        decision = Engine.optimizerEngine(G.dice, available, 0, G.upperSum);
+        decision._fromDB = YahtzeeDB.isReady;
     }
     const bestCat = decision.category;
     const bestScore = Engine.scoreFor(bestCat, G.dice);
@@ -396,7 +387,7 @@ function scoreCategory(cat) {
     updateHeader();
 
     // Check game over
-    if (G.turn >= 13) {
+    if (G.turn >= 15) {
         setTimeout(endGame, 700);
         return;
     }
@@ -693,7 +684,7 @@ function updateHeader() {
     const turn = G.scorecard
         ? Engine.ALL_CATEGORIES.filter(c => G.scorecard[c] !== null).length
         : 0;
-    document.getElementById('turn-number').textContent = `${turn} / 13`;
+    document.getElementById('turn-number').textContent = `${turn} / 15`;
     document.getElementById('total-score').textContent = computeGrand();
 }
 
