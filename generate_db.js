@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const OUT_FILE = path.join(__dirname, 'yahtzee_perfect.ydb');
+const OUT_FILE = path.join(__dirname, 'yatzy_perfect.ydb');
 const MAGIC = 'YTZDB005'; // Version 5
 const N_CATS = 32768;
 const MAX_UPPER = 64; // Scores 0 to 63
