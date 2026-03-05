@@ -417,7 +417,7 @@ body::before {
 .dice-tray {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   margin-bottom: 10px;
 }
 
@@ -428,13 +428,13 @@ body::before {
   gap: 12px;
 }
 
-/* The die face display */
+/* The die face display — transparent glass look */
 .die-btn {
   width: 64px;
   height: 64px;
   flex-shrink: 0;
-  background: var(--bg-surface);
-  border: 2px solid var(--border-subtle);
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.13);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
@@ -457,10 +457,10 @@ body::before {
 }
 
 .die-btn:hover {
-  border-color: var(--accent-primary);
-  background: rgba(108, 99, 255, 0.1);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(108, 99, 255, 0.25);
+  border-color: rgba(108, 99, 255, 0.5);
+  background: rgba(108, 99, 255, 0.07);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(108, 99, 255, 0.18);
 }
 
 .die-btn:active {
@@ -477,12 +477,12 @@ body::before {
   opacity: 1;
 }
 
-/* Held die */
+/* Held die — subtle green tint only, stays transparent */
 .die-btn[data-held="true"] {
   border-color: var(--accent-green) !important;
-  background: rgba(52, 211, 153, 0.12) !important;
-  box-shadow: 0 0 20px rgba(52, 211, 153, 0.25), inset 0 0 12px rgba(52, 211, 153, 0.06);
-  transform: translateY(-4px) !important;
+  background: rgba(52, 211, 153, 0.07) !important;
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.2);
+  transform: none !important;
 }
 
 .die-btn[data-held="true"] .die-face {
@@ -511,11 +511,11 @@ body::before {
   line-height: 1;
 }
 
-/* ── Pip selector: 6 die-face buttons in a row ── */
+/* ── Pip selector: keep-tag above, 6 pip buttons below ── */
 .die-selector-wrap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   flex: 1;
 }
 
@@ -573,13 +573,16 @@ body::before {
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid rgba(52, 211, 153, 0.3);
-  display: none;
+  /* Always reserve space — invisible when not kept */
+  visibility: hidden;
   white-space: nowrap;
   align-self: flex-start;
+  /* Show above the pip selector */
+  order: -1;
 }
 
 .die-keep-tag.visible {
-  display: inline-block;
+  visibility: visible;
 }
 
 /* Keyboard hint */
