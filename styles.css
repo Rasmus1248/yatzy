@@ -416,23 +416,23 @@ body::before {
 
 .dice-tray {
   display: flex;
-  gap: 14px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .die-input-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-/* The clickable die face */
+/* The die face display */
 .die-btn {
-  width: 88px;
-  height: 88px;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
   background: var(--bg-surface);
   border: 2px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -489,22 +489,10 @@ body::before {
   color: var(--accent-green);
 }
 
-/* Held label */
+/* Held label — placed to the right via sibling selector in JS; keep pseudo for CSS fallback */
 .die-btn[data-held="true"]::after {
-  content: '✓ KEEP';
-  position: absolute;
-  bottom: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: var(--accent-green);
-  white-space: nowrap;
-  background: rgba(52, 211, 153, 0.15);
-  padding: 2px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(52, 211, 153, 0.3);
+  content: '';
+  /* label is now rendered as .die-keep-tag in JS */
 }
 
 /* Focused (selected for keyboard input) */
@@ -523,56 +511,85 @@ body::before {
   line-height: 1;
 }
 
-/* +/- controls */
-.die-controls {
+/* ── Pip selector: 6 die-face buttons in a row ── */
+.die-selector-wrap {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  /* Reserve space for the KEEP badge that appears below the die */
-  margin-top: 26px;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
 }
 
-.die-adj {
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  border-radius: 6px;
+.die-selector {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pip-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  border: 1.5px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition);
-  line-height: 1;
+  transition: all 0.15s ease;
   padding: 0;
+  flex-shrink: 0;
 }
 
-.die-adj:hover {
+.pip-btn:hover:not(:disabled) {
+  background: rgba(108, 99, 255, 0.18);
+  border-color: rgba(108, 99, 255, 0.5);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108, 99, 255, 0.25);
+}
+
+.pip-btn.selected {
+  background: rgba(108, 99, 255, 0.28);
   border-color: var(--accent-primary);
-  color: var(--text-primary);
-  background: rgba(108, 99, 255, 0.12);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(108, 99, 255, 0.4);
+  transform: translateY(-1px);
 }
 
-.die-val-label {
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  min-width: 18px;
-  text-align: center;
+.die-selector.locked .pip-btn {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none !important;
+  pointer-events: none;
 }
 
-/* Numpad hint */
+.die-keep-tag {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--accent-green);
+  background: rgba(52, 211, 153, 0.12);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  display: none;
+  white-space: nowrap;
+  align-self: flex-start;
+}
+
+.die-keep-tag.visible {
+  display: inline-block;
+}
+
+/* Keyboard hint */
 .numpad-hint {
   text-align: center;
-  padding: 4px 0 0;
+  padding: 2px 0 0;
 }
 
 .numpad-label {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }

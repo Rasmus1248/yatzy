@@ -38,6 +38,7 @@ function createState() {
 ───────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
     G = createState();
+    initDiceSelectors();
     renderScorecard();
     renderDice();
     setRollIndicator(1);
@@ -120,6 +121,51 @@ function focusDie(index) {
         el.focus({ preventScroll: true });
     }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   PIP SELECTOR SETUP
+───────────────────────────────────────────────────────────── */
+// Pip positions scaled for a 30×30 viewBox
+const DIE_PIPS_SMALL = {
+    1: [[15, 15]],
+    2: [[8, 8], [22, 22]],
+    3: [[8, 8], [15, 15], [22, 22]],
+    4: [[8, 8], [22, 8], [8, 22], [22, 22]],
+    5: [[8, 8], [22, 8], [15, 15], [8, 22], [22, 22]],
+    6: [[8, 7], [22, 7], [8, 15], [22, 15], [8, 23], [22, 23]],
+};
+
+function makePipSVG(val) {
+    const circles = DIE_PIPS_SMALL[val]
+        .map(([cx, cy]) => `<circle cx="${cx}" cy="${cy}" r="3" fill="currentColor"/>`)
+        .join('');
+    return `<svg viewBox="0 0 30 30" width="22" height="22" xmlns="http://www.w3.org/2000/svg">${circles}</svg>`;
+}
+
+function initDiceSelectors() {
+    for (let i = 0; i < 5; i++) {
+        const container = document.getElementById(`die-selector-${i}`);
+        if (!container) continue;
+        for (let v = 1; v <= 6; v++) {
+            const btn = document.createElement('button');
+            btn.className = 'pip-btn';
+            btn.id = `pip-btn-${i}-${v}`;
+            btn.title = `Set die ${i + 1} to ${v}`;
+            btn.innerHTML = makePipSVG(v);
+            btn.addEventListener('click', () => selectDieValue(i, v));
+            container.appendChild(btn);
+        }
+    }
+}
+
+window.selectDieValue = function (index, value) {
+    if (G.rollPhase > 1 && G.heldIndices.includes(index)) {
+        showToast('This die is locked for keeping!');
+        return;
+    }
+    setDieValue(index, value);
+    focusDie(index);
+};
 
 /* ─────────────────────────────────────────────────────────────
    DIE INPUT
@@ -208,25 +254,31 @@ function showKeepAdvice(decision) {
 
     if (rerollCnt === 0) {
         headline = '✅ Keep all 5 dice — stop rolling!';
-        detail = `The current hand is already optimal. Score now.`;
+        detail = `The optimizer has found that keeping all dice and scoring immediately yields the highest expected value. No reroll can improve your long-term prospects.`;
     } else if (keepIdx.length === 0) {
         headline = `♻️ Reroll all 5 dice`;
-        detail = `None of your current dice are worth keeping.`;
+        detail = `None of your current dice are worth keeping. The optimizer evaluated all 32 possible keep subsets and found a full reroll maximizes expected value.`;
     } else {
         const vals = keepDice.join(', ');
-        headline = `🔒 Keep <strong>[${vals}]</strong> — reroll ${rerollCnt} ${rerollCnt === 1 ? 'die' : 'dice'}`;
-        detail = `Dice at positions ${keepIdx.map(i => i + 1).join(', ')} give the highest EV.`;
+        const rollWord = rerollCnt === 1 ? 'die' : 'dice';
+        headline = `🔒 Keep <strong>[${vals}]</strong> — reroll ${rerollCnt} ${rollWord}`;
+        // Build an intuitive probability description
+        const evStr = decision.ev != null ? (decision.ev).toFixed(1) : '?';
+        detail = `The optimizer compared all possible keep subsets using multinomial-weighted outcome trees.
+            Keeping <strong>[${vals}]</strong> (positions ${keepIdx.map(i => i + 1).join(', ')}) gives the highest expected value across all ${Math.pow(6, rerollCnt)} possible outcomes of the ${rerollCnt} rerolled ${rollWord}.`;
     }
 
+    const evVal = (decision.ev ?? 0).toFixed(1);
     const srcTag = decision._fromDB
-        ? '<span class="ev-chip" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#34d399">⚡ DB lookup</span>'
-        : `<span class="ev-chip">EV: ${(decision.ev ?? 0).toFixed(2)}</span>`;
+        ? `<span class="ev-chip" style="background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#34d399">⚡ DB lookup</span>
+           <span class="ev-chip">EV: ${evVal} pts</span>`
+        : `<span class="ev-chip">EV: ${evVal} pts</span>`;
 
     document.getElementById('advice-body').innerHTML = `
         <div class="advice-main">
             <div class="advice-headline">${headline}</div>
             <div class="advice-detail">${detail}</div>
-            ${srcTag}
+            <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${srcTag}</div>
         </div>
     `;
 
@@ -473,7 +525,7 @@ window.newGame = function () {
 function endGame() {
     const upper = computeUpperTotal();
     const lower = computeLowerTotal();
-    const bonus = upper >= 63 ? 35 : 0;
+    const bonus = upper >= 63 ? 50 : 0;  // Scandinavian Yatzy: 50-point upper bonus
     const grand = upper + bonus + lower;
 
     renderScorecard();
@@ -484,7 +536,7 @@ function endGame() {
     const rating = getScoreRating(grand);
     stats.innerHTML = `
         <div class="modal-stat-line"><span>Upper Section</span><strong>${upper}</strong></div>
-        <div class="modal-stat-line"><span>Upper Bonus</span><strong>${bonus > 0 ? '+35 ✅' : '0 ❌'}</strong></div>
+        <div class="modal-stat-line"><span>Upper Bonus</span><strong>${bonus > 0 ? '+50 ✅' : '0 ❌'}</strong></div>
         <div class="modal-stat-line"><span>Lower Section</span><strong>${lower}</strong></div>
         <div class="modal-stat-line" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;margin-top:2px">
             <span>Grand Total</span><strong style="color:var(--accent-gold)">${grand}</strong>
@@ -562,18 +614,26 @@ function renderDice() {
 function renderDiceIndex(i) {
     const btn = document.getElementById(`die-${i}`);
     const face = document.getElementById(`face-${i}`);
-    const valLabel = document.getElementById(`val-label-${i}`);
     const val = G.dice[i];
     const held = G.heldIndices.includes(i);
     const locked = G.rollPhase > 1 && held;
 
     btn.setAttribute('data-value', val);
     btn.setAttribute('data-held', held ? 'true' : 'false');
-
     face.innerHTML = makeDieSVG(val, held);
-    valLabel.textContent = val >= 1 ? val : '—';
+    btn.style.cursor = locked ? 'default' : 'pointer';
 
-    btn.style.cursor = locked ? 'not-allowed' : 'pointer';
+    // Sync pip buttons
+    const selector = document.getElementById(`die-selector-${i}`);
+    if (selector) selector.classList.toggle('locked', locked);
+    for (let v = 1; v <= 6; v++) {
+        const pipBtn = document.getElementById(`pip-btn-${i}-${v}`);
+        if (pipBtn) pipBtn.classList.toggle('selected', val === v);
+    }
+
+    // KEEP tag
+    const keepTag = document.getElementById(`keep-tag-${i}`);
+    if (keepTag) keepTag.classList.toggle('visible', held);
 }
 
 function renderAllDice(heldIndices) {
@@ -706,10 +766,12 @@ function showToast(msg) {
 ───────────────────────────────────────────────────────────── */
 function formatCat(cat) {
     const n = {
-        'aces': 'Aces', 'twos': 'Twos', 'threes': 'Threes', 'fours': 'Fours',
-        'fives': 'Fives', 'sixes': 'Sixes', 'three-of-a-kind': '3 of a Kind',
-        'four-of-a-kind': '4 of a Kind', 'full-house': 'Full House',
-        'small-straight': 'Small Straight', 'large-straight': 'Large Straight',
+        'aces': 'Ones', 'twos': 'Twos', 'threes': 'Threes', 'fours': 'Fours',
+        'fives': 'Fives', 'sixes': 'Sixes',
+        'pair': 'One Pair', 'two-pairs': 'Two Pairs',
+        'three-of-a-kind': '3 of a Kind', 'four-of-a-kind': '4 of a Kind',
+        'full-house': 'Full House',
+        'small-straight': 'Sm. Straight', 'large-straight': 'Lg. Straight',
         'yahtzee': 'Yahtzee', 'chance': 'Chance',
     };
     return n[cat] || cat;

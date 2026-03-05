@@ -1,2 +1,4 @@
 node_modules/
 .DS_Store
+# Generated DB — run `node generate_db.js` to rebuild
+yahtzee_perfect.ydb

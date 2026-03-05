@@ -61,7 +61,7 @@
             <div class="header-right">
                 <div class="stat-pill">
                     <span class="stat-label">Turn</span>
-                    <span class="stat-value" id="turn-number">0 / 13</span>
+                    <span class="stat-value" id="turn-number">0 / 15</span>
                 </div>
                 <div class="stat-pill accent">
                     <span class="stat-label">Score</span>
@@ -94,71 +94,56 @@
                         <span class="hint-text">Tap a die to change its value</span>
                     </div>
                     <div class="dice-tray" id="dice-tray">
-                        <!-- Die 0 -->
                         <div class="die-input-group" id="dig-0">
                             <button class="die-btn" id="die-0" data-index="0" data-value="0" data-held="false"
-                                onclick="cycleDie(0)">
-                                <span class="die-face" id="face-0">?</span>
-                            </button>
-                            <div class="die-controls">
-                                <button class="die-adj" onclick="adjustDie(0, -1)" title="Decrease">−</button>
-                                <span class="die-val-label" id="val-label-0">—</span>
-                                <button class="die-adj" onclick="adjustDie(0, 1)" title="Increase">+</button>
+                                onclick="focusDie(0)" title="Click then press 1–6"><span class="die-face"
+                                    id="face-0"></span></button>
+                            <div class="die-selector-wrap">
+                                <div class="die-selector" id="die-selector-0"></div><span class="die-keep-tag"
+                                    id="keep-tag-0">✓ KEEP</span>
                             </div>
                         </div>
-                        <!-- Die 1 -->
                         <div class="die-input-group" id="dig-1">
                             <button class="die-btn" id="die-1" data-index="1" data-value="0" data-held="false"
-                                onclick="cycleDie(1)">
-                                <span class="die-face" id="face-1">?</span>
-                            </button>
-                            <div class="die-controls">
-                                <button class="die-adj" onclick="adjustDie(1, -1)">−</button>
-                                <span class="die-val-label" id="val-label-1">—</span>
-                                <button class="die-adj" onclick="adjustDie(1, 1)">+</button>
+                                onclick="focusDie(1)" title="Click then press 1–6"><span class="die-face"
+                                    id="face-1"></span></button>
+                            <div class="die-selector-wrap">
+                                <div class="die-selector" id="die-selector-1"></div><span class="die-keep-tag"
+                                    id="keep-tag-1">✓ KEEP</span>
                             </div>
                         </div>
-                        <!-- Die 2 -->
                         <div class="die-input-group" id="dig-2">
                             <button class="die-btn" id="die-2" data-index="2" data-value="0" data-held="false"
-                                onclick="cycleDie(2)">
-                                <span class="die-face" id="face-2">?</span>
-                            </button>
-                            <div class="die-controls">
-                                <button class="die-adj" onclick="adjustDie(2, -1)">−</button>
-                                <span class="die-val-label" id="val-label-2">—</span>
-                                <button class="die-adj" onclick="adjustDie(2, 1)">+</button>
+                                onclick="focusDie(2)" title="Click then press 1–6"><span class="die-face"
+                                    id="face-2"></span></button>
+                            <div class="die-selector-wrap">
+                                <div class="die-selector" id="die-selector-2"></div><span class="die-keep-tag"
+                                    id="keep-tag-2">✓ KEEP</span>
                             </div>
                         </div>
-                        <!-- Die 3 -->
                         <div class="die-input-group" id="dig-3">
                             <button class="die-btn" id="die-3" data-index="3" data-value="0" data-held="false"
-                                onclick="cycleDie(3)">
-                                <span class="die-face" id="face-3">?</span>
-                            </button>
-                            <div class="die-controls">
-                                <button class="die-adj" onclick="adjustDie(3, -1)">−</button>
-                                <span class="die-val-label" id="val-label-3">—</span>
-                                <button class="die-adj" onclick="adjustDie(3, 1)">+</button>
+                                onclick="focusDie(3)" title="Click then press 1–6"><span class="die-face"
+                                    id="face-3"></span></button>
+                            <div class="die-selector-wrap">
+                                <div class="die-selector" id="die-selector-3"></div><span class="die-keep-tag"
+                                    id="keep-tag-3">✓ KEEP</span>
                             </div>
                         </div>
-                        <!-- Die 4 -->
                         <div class="die-input-group" id="dig-4">
                             <button class="die-btn" id="die-4" data-index="4" data-value="0" data-held="false"
-                                onclick="cycleDie(4)">
-                                <span class="die-face" id="face-4">?</span>
-                            </button>
-                            <div class="die-controls">
-                                <button class="die-adj" onclick="adjustDie(4, -1)">−</button>
-                                <span class="die-val-label" id="val-label-4">—</span>
-                                <button class="die-adj" onclick="adjustDie(4, 1)">+</button>
+                                onclick="focusDie(4)" title="Click then press 1–6"><span class="die-face"
+                                    id="face-4"></span></button>
+                            <div class="die-selector-wrap">
+                                <div class="die-selector" id="die-selector-4"></div><span class="die-keep-tag"
+                                    id="keep-tag-4">✓ KEEP</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Quick-set number pad -->
                     <div class="numpad-hint">
-                        <span class="numpad-label">Or use keyboard: select die then press 1–6</span>
+                        <span class="numpad-label">Tap a face to select its value &middot; or focus a die and press
+                            1–6</span>
                     </div>
                 </div>
 
@@ -216,8 +201,8 @@
                     </div>
                     <div class="score-row" id="row-aces" data-category="aces" onclick="manualScore('aces')">
                         <div class="row-left">
-                            <span class="category-name">Aces</span>
-                            <span class="category-desc">Sum of ⚀s</span>
+                            <span class="category-name">Ones</span>
+                            <span class="category-desc">Sum of 1s</span>
                         </div>
                         <span class="category-score" id="score-aces">—</span>
                     </div>
@@ -259,7 +244,7 @@
                     <div class="score-row bonus-row" id="row-upper-bonus">
                         <div class="row-left">
                             <span class="category-name">Upper Bonus</span>
-                            <span class="category-desc">≥63 → +50</span>
+                            <span class="category-desc">≥63 → +50 pts</span>
                         </div>
                         <span class="category-score" id="score-upper-bonus">—</span>
                     </div>
