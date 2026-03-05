@@ -1,7 +1,7 @@
 window.YahtzeeDB = (() => {
     'use strict';
 
-    const DB_FILE = 'yahtzee_perfect.ydb';
+    const DB_FILE = 'yatzy_perfect.ydb';
     const MAGIC = 'YTZDB005';
     const N_CATS = 32768;
     const MAX_UPPER = 64;
