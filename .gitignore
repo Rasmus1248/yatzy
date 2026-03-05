@@ -1,4 +1,4 @@
 node_modules/
 .DS_Store
-# Generated DB — run `node generate_db.js` to rebuild
+# Old filename (now renamed to yatzy_perfect.ydb which is tracked in git)
 yahtzee_perfect.ydb
